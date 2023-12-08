@@ -11,6 +11,7 @@ public class SpringCube : MonoBehaviour
     public int edgesOnLine = 1;
     public float radius = 0.1f;
     public GameObject pointSkin;
+    public GameObject targetPoint;
     public GameObject room;
 
     public Material lineMat;
@@ -19,11 +20,10 @@ public class SpringCube : MonoBehaviour
     EdgeController edgesAndPoints;
     public GameObject[] pointObjects { get; private set; }
     private GameObject[] pointsAsGameObjects;
+    private GameObject[] targetPoints;
 
     private float lineLength;
     private float halfLineLength;
-
-
 
     // Start is called before the first frame update
     void Start()
@@ -34,13 +34,29 @@ public class SpringCube : MonoBehaviour
         Vector3 start =  -new Vector3(halfLineLength, halfLineLength, halfLineLength);
         edgesAndPoints = new EdgeController(edgesOnLine, lineLength, start);
         CreateSkinsForPoints();
+        CreateTargetPoint(start);
         CreateLines();
     }
 
-    // Update is called once per frame
     void Update()
     {
         DisplayLines();
+    }
+
+    void CreateTargetPoint(Vector3 start)
+    {
+        Vector3[] corners = edgesAndPoints.CornerPoints(start);
+        targetPoints = new GameObject[corners.Length];
+        for (int i = 0; i < corners.Length; i++)    
+        {
+            var point = corners[i];
+            GameObject currentEntity = Instantiate(targetPoint, point, Quaternion.identity, gameObject.transform);
+            var ceScal = currentEntity.transform.localScale;
+            var tmp2 = gameObject.transform.localScale;
+            currentEntity.transform.localScale =  new Vector3(ceScal.x / tmp2.x, ceScal.y / tmp2.y, ceScal.z / tmp2.z);
+            currentEntity.name = string.Format("TargetPoint_{0}", i);
+            targetPoints[i] = currentEntity;
+        }
     }
 
     void CreateSkinsForPoints()

@@ -9,23 +9,22 @@ namespace Assets
 {
     public class EdgeController
     {
-        public Edge[] straightEdges { get; private set; }
-        public Edge[] diagonalEdges { get; private set; }
-        public Vector3[] points { get; private set; }
-
         public float lineLength { get; private set; }
         public float edgeLength { get; private set; }
         public float halfLineLength { get; private set; }
 
         public int numberOfStraightEdges { get; private set; }
         public int numberOfDiagonalEdges { get; private set; }
-
-        private int numberOfEdgesConnectedWithTarget;
-
         public int numberOfPoints { get; private set; }
 
         public int pointsOnLine { get; private set; }
         public const int dim = 3;
+        public Edge[] straightEdges { get; private set; }
+        public Edge[] diagonalEdges { get; private set; }
+        public Vector3[] points { get; private set; }
+        private (int pointId, Transform gm)[] springCubePoint_targetPoint;
+
+        
 
         private readonly int _costOfMovingAlong_x;
         private readonly int _costOfMovingAlong_y;
@@ -49,7 +48,6 @@ namespace Assets
 
             numberOfStraightEdges = 2 * edgesOnLine * pointsOnLine * (2 * pointsOnLine - 1);
             numberOfDiagonalEdges = pointsOnLine * edgesOnLine * edgesOnLine * 2 * 3;
-            numberOfEdgesConnectedWithTarget = 4;
 
             numberOfPoints = pointsOnLine * pointsOnLine * pointsOnLine;
 
@@ -64,6 +62,32 @@ namespace Assets
 
             CreatePoints(start);
             CreateEdges();
+        }
+
+        public void ConectWithTarget(GameObject[] targetPoints)
+        {
+            springCubePoint_targetPoint = new (int, Transform)[8];
+
+            for( int i = 0; i < targetPoints.Length; i++ )
+            {
+                springCubePoint_targetPoint[i].gm = targetPoints[i].transform;
+                springCubePoint_targetPoint[i].pointId = i;
+            }
+
+            springCubePoint_targetPoint[0].pointId = 0;
+            for (int i = 1; i < targetPoints.Length; i++)
+            {
+                springCubePoint_targetPoint[i].pointId = (springCubePoint_targetPoint[i - 1].pointId + 1)* (pointsOnLine - 1);
+            }
+            springCubePoint_targetPoint[0].pointId = 0;
+            springCubePoint_targetPoint[1].pointId = pointsOnLine - 1;
+            springCubePoint_targetPoint[2].pointId = pointsOnLine* (pointsOnLine - 1) ;
+            springCubePoint_targetPoint[3].pointId = pointsOnLine * (pointsOnLine - 1)  + pointsOnLine - 1;
+
+            springCubePoint_targetPoint[4].pointId = pointsOnLine * pointsOnLine * (pointsOnLine - 1);
+            springCubePoint_targetPoint[5].pointId = pointsOnLine * pointsOnLine  * pointsOnLine - ( pointsOnLine - 1)* pointsOnLine;
+            springCubePoint_targetPoint[6].pointId = pointsOnLine * pointsOnLine * pointsOnLine - pointsOnLine;
+            springCubePoint_targetPoint[7].pointId = pointsOnLine * pointsOnLine * pointsOnLine - 1;
         }
 
         void CreatePoints(Vector3 start)
@@ -84,6 +108,29 @@ namespace Assets
                     }
                 }
             }
+        }
+
+        public Vector3[] CornerPoints(Vector3 start)
+        {
+            var direction_x = new Vector3(lineLength, 0, 0);
+            var direction_y = new Vector3(0, lineLength, 0);
+            var direction_z = new Vector3(0, 0, lineLength);
+
+            Vector3[] tmp = new Vector3[8];
+            int id = 0;
+            for (int i = 0; i < 2; i++)
+            {
+                for (int j = 0; j < 2; j++)
+                {
+                    for (int k = 0; k < 2; k++)
+                    {
+                        tmp[id] = start + i * direction_x + j * direction_y + k * direction_z;
+                        id++;
+                    }
+                }
+            }
+
+            return tmp;
         }
 
         private void CreateEdges()
@@ -165,4 +212,6 @@ namespace Assets
             second = s;
         }
     }
+
+
 }
