@@ -9,24 +9,35 @@ namespace Assets
 {
     public class EdgeController
     {
-        public int[] neighbours { get; private set; }
+        public Edge[] straightEdges { get; private set; }
+        public Edge[] diagonalEdges { get; private set; }
         public Vector3[] points { get; private set; }
 
         public float lineLength { get; private set; }
         public float edgeLength { get; private set; }
         public float halfLineLength { get; private set; }
-        public int numberOfEdges { get; private set; }
+
         public int numberOfStraightEdges { get; private set; }
+        public int numberOfDiagonalEdges { get; private set; }
+
+        private int numberOfEdgesConnectedWithTarget;
+
         public int numberOfPoints { get; private set; }
 
         public int pointsOnLine { get; private set; }
         public const int dim = 3;
 
-        private int _costOfMovingAlong_x;
-        private int _costOfMovingAlong_y;
-        private int _costOfMovingAlong_z;
-        private int _potentialNeighbours = 9;
+        private readonly int _costOfMovingAlong_x;
+        private readonly int _costOfMovingAlong_y;
+        private readonly int _costOfMovingAlong_z;
+        private readonly int[] _costOfMovingAlong;
 
+        private enum Axis
+        {
+            x,
+            y,
+            z
+        }
 
         public EdgeController(int edgesOnLine, float lineLength, Vector3 start)
         {
@@ -36,32 +47,27 @@ namespace Assets
             pointsOnLine = 2 + edgesOnLine - 1;
 
 
-            //NumberOfStraightEdges = 2 * edgesOnLine * pointsOnLine * (2 * pointsOnLine - 1);
-            //NumberOfDiagonalEdges = pointsOnLine * edgesOnLine * edgesOnLine * 2 * 3;
-            //NumberOfEdgesConnectedWithTarget = 4;
+            numberOfStraightEdges = 2 * edgesOnLine * pointsOnLine * (2 * pointsOnLine - 1);
+            numberOfDiagonalEdges = pointsOnLine * edgesOnLine * edgesOnLine * 2 * 3;
+            numberOfEdgesConnectedWithTarget = 4;
+
             numberOfPoints = pointsOnLine * pointsOnLine * pointsOnLine;
-            numberOfEdges = pointsOnLine * pointsOnLine * pointsOnLine * _potentialNeighbours;
-            numberOfStraightEdges = numberOfPoints * dim;
+
             _costOfMovingAlong_x = 1;
             _costOfMovingAlong_y = pointsOnLine;
             _costOfMovingAlong_z = pointsOnLine * pointsOnLine;
+            _costOfMovingAlong=  new int[3] {_costOfMovingAlong_z, _costOfMovingAlong_y, _costOfMovingAlong_x};
 
             points = new Vector3[numberOfPoints];
-            neighbours = new int[_potentialNeighbours*numberOfPoints];
+            straightEdges = new Edge[numberOfStraightEdges];
+            diagonalEdges = new Edge[numberOfDiagonalEdges];
 
             CreatePoints(start);
             CreateEdges();
         }
 
-        public int GetNeighbourId(int pointId, Axis axis, Direction direction, Axis? axisSecond = null, Direction? directionSecond = null)
-        {
-            return neighbours[DecodeNeighbourId(pointId, axis, direction, axisSecond, directionSecond)];
-        }
-
-
         void CreatePoints(Vector3 start)
         {
-
             var direction_x = new Vector3(edgeLength, 0, 0);
             var direction_y = new Vector3(0, edgeLength, 0);
             var direction_z = new Vector3(0, 0, edgeLength);
@@ -82,157 +88,81 @@ namespace Assets
 
         private void CreateEdges()
         {
+            int id = 0;
+            int idDiagonal = 0;
             for (int pointId = 0; pointId < points.Length; pointId++)
             {
+                // proste linie
                 for (int axisId = 0; axisId < 3; axisId++)
                 {
-                    Axis axis = (Axis)axisId; ;
-                    if (CanConnect(pointId, axis, Direction.forward))
+                    int directionCost = _costOfMovingAlong[axisId];
+                    if (pointId + directionCost < points.Length && points[pointId][axisId] < halfLineLength)
                     {
-                        neighbours[DecodeNeighbourId(pointId, axis, Direction.forward) ] = pointId + DistanceFromNeighbour((Axis)axisId, Direction.forward);
+                        straightEdges[id].Set(pointId, pointId + directionCost);
+                        id++;
                     }
                 }
 
-                for (int directionId = 0; directionId < 2; directionId++)
-                {
-                    Direction direction = (Direction)directionId;
-                    if (CanConnect(pointId, Axis.x, direction, Axis.y, Direction.forward))
-                    {
-                        neighbours[DecodeNeighbourId(pointId, Axis.x, direction, Axis.y, Direction.forward)] = pointId + DistanceFromNeighbour(Axis.x, direction)
-                            + DistanceFromNeighbour(Axis.y, Direction.forward);
-                    }
+                // linia xy
+                if (SetEdgeAlong(idDiagonal, pointId, Axis.x, 1, Axis.y, 1))
+                    idDiagonal++;
 
-                    if (CanConnect(pointId, Axis.x, direction, Axis.z, Direction.forward))
-                    {
-                        neighbours[DecodeNeighbourId(pointId, Axis.x, direction, Axis.z, Direction.forward)] = pointId + DistanceFromNeighbour(Axis.x, direction) 
-                            + DistanceFromNeighbour(Axis.z, Direction.forward);
-                    }
+                // linia -xy
+                if (SetEdgeAlong(idDiagonal, pointId, Axis.x, -1, Axis.y, 1))
+                    idDiagonal++;
 
-                    if (CanConnect(pointId, Axis.y, direction, Axis.z, Direction.forward))
-                    {
-                        neighbours[ DecodeNeighbourId(pointId, Axis.y, direction, Axis.z, Direction.forward)] = pointId + DistanceFromNeighbour(Axis.y, direction) 
-                            + DistanceFromNeighbour(Axis.z, Direction.forward);
-                    }
+                // linia xz
+                if (SetEdgeAlong(idDiagonal, pointId, Axis.x, 1, Axis.z, 1))
+                    idDiagonal++;
 
-                }
+                // linia -xz
+                if (SetEdgeAlong(idDiagonal, pointId, Axis.x, -1, Axis.z, 1))
+                    idDiagonal++;
+
+                // linia yz
+                if (SetEdgeAlong(idDiagonal, pointId, Axis.y, 1, Axis.z, 1))
+                    idDiagonal++;
+
+                // linia -yz
+                if (SetEdgeAlong(idDiagonal, pointId, Axis.y, -1, Axis.z, 1))
+                    idDiagonal++;
 
             }
         }
 
 
-        private bool CanConnect(int pointId, Axis axis, Direction direction, Axis? axisSecond = null, Direction? directionSecond = null)
+       private bool SetEdgeAlong(int id, int pointId, Axis axis1,  int scalarAxis1, Axis axis2, int scalarAxis2)
         {
-
             Vector3 point = points[pointId];
-            int distanceFromNeighbour = DistanceFromNeighbour(axis, direction) + DistanceFromNeighbour(axisSecond, directionSecond);
+            int directionCost = scalarAxis1 * _costOfMovingAlong[(int)axis1] + scalarAxis2* _costOfMovingAlong[(int)axis2];
 
-            return Mathf.Abs(pointId + distanceFromNeighbour) < points.Length &&
-               DirectionToScalar(direction) * point[(int)axis] < halfLineLength &&
-               (axisSecond == null || DirectionToScalar(directionSecond) * point[(int) axisSecond] < halfLineLength );
+            if (pointId + directionCost < points.Length &&
+                point[(int)axis1] * scalarAxis1 < halfLineLength &&
+                point[(int)axis2] * scalarAxis2 < halfLineLength)
+            {
+                diagonalEdges[id].Set(pointId, pointId + directionCost);
+                return true;
+            }
+
+            return false;
         }
-
-
-        private int DirectionToScalar(Direction? direction)
-        {
-            int directionScalar = 0;
-            switch (direction)
-            {
-                case Direction.forward:
-                    directionScalar = 1;
-                    break;
-                case Direction.backward:
-                    directionScalar = -1;
-                    break;
-                default:
-                    break;
-            }
-
-            return directionScalar;
-        }
-
-        private int DistanceFromNeighbour(Axis? axis, Direction? direction)
-        {
-            int directionScalar = 0;
-            switch (direction)
-            {
-                case Direction.forward:
-                    directionScalar = 1;
-                    break;
-                case Direction.backward:
-                    directionScalar = -1;
-                    break;
-                default:
-                    break;
-            }
-
-            int costOfMoving = 0;
-            switch (axis)
-            {
-                case Axis.x:
-                    costOfMoving = _costOfMovingAlong_x;
-                    break;
-                case Axis.y:
-                    costOfMoving = _costOfMovingAlong_y;
-                    break;
-                case Axis.z:
-                    costOfMoving = _costOfMovingAlong_z;
-                    break;
-                default:
-                    break;
-            }
-            return costOfMoving * directionScalar;
-        }
-
-
-        public int DecodeNeighbourId(int pointId, Axis axis, Direction direction, Axis? secondAxis = null, Direction? secondDirection = null)
-        {
-           
-            if (secondAxis == null)
-            {
-                if (direction == Direction.forward)
-                    return _potentialNeighbours * pointId + (int)axis;
-                else
-                    throw new NotImplementedException();
-            }
-
-            int tmp = 0;
-            if (direction == Direction.forward && secondDirection == Direction.forward)
-            {
-                tmp = dim - 1 + (int)axis + (int)secondAxis;
-            }
-            else if (direction == Direction.backward)
-            {
-                tmp = dim * 2 - 1 + (int)axis + (int)secondAxis;
-            }
-            else
-            {
-                // nie zaimplementowane
-                throw new NotImplementedException();
-            }
-
-
-            return _potentialNeighbours * pointId + tmp;
-        }
-
     }
 
     public struct Edge
     {
         public int first;
         public int second;
-    }
 
-    public enum Axis
-    {
-        x,
-        y,
-        z
-    }
+        public Edge(int first, int second)
+        {
+            this.first = first;
+            this.second = second;
+        }
 
-    public enum Direction
-    {
-        forward,
-        backward
+        public void Set(int f, int s)
+        {
+            first = f;
+            second = s;
+        }
     }
-
 }

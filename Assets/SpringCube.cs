@@ -1,6 +1,7 @@
 using Assets;
 using System.Collections;
 using System.Collections.Generic;
+using System.Drawing;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -11,14 +12,12 @@ public class SpringCube : MonoBehaviour
     public float radius = 0.1f;
     public GameObject pointSkin;
     public GameObject room;
-    public GameObject target;
 
     public Material lineMat;
     public Mesh cylinderMesh;
 
     EdgeController edgesAndPoints;
     public GameObject[] pointObjects { get; private set; }
-
     private GameObject[] pointsAsGameObjects;
 
     private float lineLength;
@@ -36,9 +35,6 @@ public class SpringCube : MonoBehaviour
         edgesAndPoints = new EdgeController(edgesOnLine, lineLength, start);
         CreateSkinsForPoints();
         CreateLines();
-        //CreateCubeSection(start, direction_z, direction_y, direction_x, 0);
-        //CreateCubeSection(start, direction_x, direction_z, direction_y, (int)(numberOfEdges / 3.0f));
-        //CreateCubeSection(start, direction_y, direction_x, direction_z, (int)(2.0f * numberOfEdges / 3.0f));
     }
 
     // Update is called once per frame
@@ -47,49 +43,41 @@ public class SpringCube : MonoBehaviour
         DisplayLines();
     }
 
-    
-
     void CreateSkinsForPoints()
     {
+        GameObject pointsParent = new GameObject();
+        pointsParent.name = "Points";
         pointObjects = new GameObject[edgesAndPoints.points.Length];
         for (int i = 0; i < edgesAndPoints.points.Length; i++) 
         {
             var point = edgesAndPoints.points[i];
-            GameObject currentEntity = Instantiate(pointSkin, point, Quaternion.identity, gameObject.transform);
+            GameObject currentEntity = Instantiate(pointSkin, point, Quaternion.identity, pointsParent.transform);
             currentEntity.name = string.Format("Point_{0}", i);
             pointObjects[i] = currentEntity;
         }
     }
 
-   
-
     private void DisplayLines()
     {
-        for (int pointId = 0; pointId < edgesAndPoints.numberOfPoints; pointId++)
+        for (int i = 0; i < edgesAndPoints.numberOfStraightEdges; i++)
         {
-            for (int axisId = 0; axisId < 3; axisId++)
-            {
-                Axis axis = (Axis)axisId;
-                int neighbourId = edgesAndPoints.GetNeighbourId(pointId, axis, Direction.forward);
-                // Move the ring to the point
-                this.pointsAsGameObjects[pointId].transform.position = edgesAndPoints.points[pointId];
+            Assets.Edge edge = edgesAndPoints.straightEdges[i];
+            int start = edge.first;
+            int end = edge.second;
+            // Move the ring to the point
+            this.pointsAsGameObjects[i].transform.position = edgesAndPoints.points[start];
 
-                // Match the scale to the distance
-                float cylinderDistance = 0.5f * Vector3.Distance(edgesAndPoints.points[pointId], edgesAndPoints.points[neighbourId]);
-                this.pointsAsGameObjects[pointId].transform.localScale = new Vector3(this.pointsAsGameObjects[pointId].transform.localScale.x,
-                    cylinderDistance / transform.localScale.x, this.pointsAsGameObjects[pointId].transform.localScale.z);
+            // Match the scale to the distance
+            float cylinderDistance = 0.5f * Vector3.Distance(edgesAndPoints.points[start], edgesAndPoints.points[end]);
+            this.pointsAsGameObjects[i].transform.localScale = new Vector3(this.pointsAsGameObjects[i].transform.localScale.x,
+                cylinderDistance / transform.localScale.x, this.pointsAsGameObjects[i].transform.localScale.z);
 
-                // Make the cylinder look at the main point.
-                // Since the cylinder is pointing up(y) and the forward is z, we need to offset by 90 degrees.
-                this.pointsAsGameObjects[pointId].transform.LookAt(edgesAndPoints.points[neighbourId], Vector3.up);
-                this.pointsAsGameObjects[pointId].transform.rotation *= Quaternion.Euler(90, 0, 0);
-            }
+            // Make the cylinder look at the main point.
+            // Since the cylinder is pointing up(y) and the forward is z, we need to offset by 90 degrees.
+            this.pointsAsGameObjects[i].transform.LookAt(edgesAndPoints.points[end], Vector3.up);
+            this.pointsAsGameObjects[i].transform.rotation *= Quaternion.Euler(90, 0, 0);
         }
     }
-
-    
-
-   
 
     private void CreateLines()
     {
