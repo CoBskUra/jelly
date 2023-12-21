@@ -2,3 +2,4 @@
 dodać prawidłową długość lini diagonalnych
 dodać prawidłową długość lini łączących z targetem
 zmień nazwy plików
+dodaj podążanie za targetem
