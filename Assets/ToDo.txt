@@ -1,0 +1,3 @@
+﻿damping scalar przy zwiększaniu powinień spowalniać sprężyny skalure się w złą stronę
+dodać prawidłową długość lini diagonalnych
+dodać prawidłową długość lini łączących z targetem

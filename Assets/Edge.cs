@@ -4,6 +4,7 @@ using Unity.VisualScripting;
 using System.Collections;
 using UnityEditor.PackageManager;
 using System;
+using System.Net.NetworkInformation;
 
 namespace Assets
 {
@@ -19,12 +20,14 @@ namespace Assets
 
         public int pointsOnLine { get; private set; }
         public const int dim = 3;
-        public Edge[] straightEdges { get; private set; }
-        public Edge[] diagonalEdges { get; private set; }
-        public Vector3[] points { get; private set; }
-        private (int pointId, Transform gm)[] springCubePoint_targetPoint;
 
-        
+        public Spring[] straightEdges { get; private set; }
+        public Spring[] diagonalEdges { get; private set; }
+        public Spring[] connectedToTarget {  get; private set; }
+
+        public Point[] points { get; private set; }
+        public Point[] targetsPoints { get; private set; }
+
 
         private readonly int _costOfMovingAlong_x;
         private readonly int _costOfMovingAlong_y;
@@ -56,38 +59,37 @@ namespace Assets
             _costOfMovingAlong_z = pointsOnLine * pointsOnLine;
             _costOfMovingAlong=  new int[3] {_costOfMovingAlong_z, _costOfMovingAlong_y, _costOfMovingAlong_x};
 
-            points = new Vector3[numberOfPoints];
-            straightEdges = new Edge[numberOfStraightEdges];
-            diagonalEdges = new Edge[numberOfDiagonalEdges];
+            points = new Point[numberOfPoints];
+            straightEdges = new Spring[numberOfStraightEdges];
+            diagonalEdges = new Spring[numberOfDiagonalEdges];
 
             CreatePoints(start);
             CreateEdges();
         }
 
-        public void ConectWithTarget(GameObject[] targetPoints)
+
+        public void ConectWithTarget(GameObject[] gmTargetPoints)
         {
-            springCubePoint_targetPoint = new (int, Transform)[8];
+            targetsPoints = new Point[gmTargetPoints.Length];
+            connectedToTarget = new Spring[gmTargetPoints.Length];
 
-            for( int i = 0; i < targetPoints.Length; i++ )
+            for ( int i = 0; i < gmTargetPoints.Length; i++ )
             {
-                springCubePoint_targetPoint[i].gm = targetPoints[i].transform;
-                springCubePoint_targetPoint[i].pointId = i;
+                targetsPoints[i].position = gmTargetPoints[i].transform.position;
+                targetsPoints[i].inversMass = 0;
+                connectedToTarget[i].first = i;
             }
 
-            springCubePoint_targetPoint[0].pointId = 0;
-            for (int i = 1; i < targetPoints.Length; i++)
-            {
-                springCubePoint_targetPoint[i].pointId = (springCubePoint_targetPoint[i - 1].pointId + 1)* (pointsOnLine - 1);
-            }
-            springCubePoint_targetPoint[0].pointId = 0;
-            springCubePoint_targetPoint[1].pointId = pointsOnLine - 1;
-            springCubePoint_targetPoint[2].pointId = pointsOnLine* (pointsOnLine - 1) ;
-            springCubePoint_targetPoint[3].pointId = pointsOnLine * (pointsOnLine - 1)  + pointsOnLine - 1;
+            // połączenie punktów z tablicy points tak by każdy róg odpowiadał rogowi
+            connectedToTarget[0].second = 0;
+            connectedToTarget[1].second = pointsOnLine - 1;
+            connectedToTarget[2].second = pointsOnLine* (pointsOnLine - 1) ;
+            connectedToTarget[3].second = pointsOnLine * (pointsOnLine - 1)  + pointsOnLine - 1;
 
-            springCubePoint_targetPoint[4].pointId = pointsOnLine * pointsOnLine * (pointsOnLine - 1);
-            springCubePoint_targetPoint[5].pointId = pointsOnLine * pointsOnLine  * pointsOnLine - ( pointsOnLine - 1)* pointsOnLine;
-            springCubePoint_targetPoint[6].pointId = pointsOnLine * pointsOnLine * pointsOnLine - pointsOnLine;
-            springCubePoint_targetPoint[7].pointId = pointsOnLine * pointsOnLine * pointsOnLine - 1;
+            connectedToTarget[4].second = pointsOnLine * pointsOnLine * (pointsOnLine - 1);
+            connectedToTarget[5].second = pointsOnLine * pointsOnLine  * pointsOnLine - ( pointsOnLine - 1)* pointsOnLine;
+            connectedToTarget[6].second = pointsOnLine * pointsOnLine * pointsOnLine - pointsOnLine;
+            connectedToTarget[7].second = pointsOnLine * pointsOnLine * pointsOnLine - 1;
         }
 
         void CreatePoints(Vector3 start)
@@ -103,7 +105,8 @@ namespace Assets
                 {
                     for (int k = 0; k < pointsOnLine; k++)
                     {
-                        points[id] = start + i * direction_x + j * direction_y + k * direction_z;
+                        points[id].position = start + i * direction_x + j * direction_y + k * direction_z;
+                        points[id].mass = 1;
                         id++;
                     }
                 }
@@ -143,9 +146,9 @@ namespace Assets
                 for (int axisId = 0; axisId < 3; axisId++)
                 {
                     int directionCost = _costOfMovingAlong[axisId];
-                    if (pointId + directionCost < points.Length && points[pointId][axisId] < halfLineLength)
+                    if (pointId + directionCost < points.Length && points[pointId].position[axisId] < halfLineLength)
                     {
-                        straightEdges[id].Set(pointId, pointId + directionCost);
+                        straightEdges[id].Set(pointId, pointId + directionCost, 0.3f, edgeLength);
                         id++;
                     }
                 }
@@ -180,36 +183,152 @@ namespace Assets
 
        private bool SetEdgeAlong(int id, int pointId, Axis axis1,  int scalarAxis1, Axis axis2, int scalarAxis2)
         {
-            Vector3 point = points[pointId];
+            Vector3 point = points[pointId].position;
             int directionCost = scalarAxis1 * _costOfMovingAlong[(int)axis1] + scalarAxis2* _costOfMovingAlong[(int)axis2];
 
             if (pointId + directionCost < points.Length &&
                 point[(int)axis1] * scalarAxis1 < halfLineLength &&
                 point[(int)axis2] * scalarAxis2 < halfLineLength)
             {
-                diagonalEdges[id].Set(pointId, pointId + directionCost);
+                diagonalEdges[id].Set(pointId, pointId + directionCost, 0.3f, edgeLength);
                 return true;
             }
 
             return false;
         }
+
+        public void CalculateNextStep(float delta, float dampingScalar)
+        {
+            // zerowanie wektora siły sprężystości
+            for(int i = 0; i < points.Length; i++)
+            {
+                points[i].springForce = Vector3.zero;
+            }
+
+            for (int i = 0; i < targetsPoints.Length; i++)
+            {
+                targetsPoints[i].springForce = Vector3.zero;
+            }
+
+
+            // obliczanie nowego wektorowa siły sprężystości 
+            for (int i = 0; i < straightEdges.Length; i++)
+            {
+                var spring = straightEdges[i];
+
+                Vector3 springDirection = points[spring.second].position - points[spring.first].position;
+
+                float force = spring.elasticityScalar * (spring.l_0 - springDirection.sqrMagnitude);
+                springDirection = springDirection.normalized;
+
+                points[spring.first].springForce -= springDirection * force;
+                points[spring.second].springForce += springDirection * force;
+            }
+
+            for (int i = 0; i < diagonalEdges.Length; i++)
+            {
+                var spring = diagonalEdges[i];
+
+                Vector3 springDirection = points[spring.second].position - points[spring.first].position;
+
+                float force = spring.elasticityScalar * (spring.l_0 - springDirection.sqrMagnitude);
+                springDirection = springDirection.normalized;
+                points[spring.first].springForce -= springDirection * force;
+                points[spring.second].springForce += springDirection * force;
+            }
+
+            
+
+            for (int i = 0; i < connectedToTarget.Length; i++)
+            {
+                var spring = connectedToTarget[i];
+
+                Vector3 springDirection = points[spring.second].position - targetsPoints[spring.first].position;
+
+                float force = spring.elasticityScalar * (spring.l_0 - springDirection.sqrMagnitude);
+                springDirection = springDirection.normalized;
+
+                targetsPoints[spring.first].springForce -= springDirection * force;
+                points[spring.second].springForce += springDirection * force;
+            }
+
+            // obliczanie nowej prędkości i jej pochodnych
+            for ( int  i = 0;i < points.Length; i++)
+            {
+                points[i].UpdatePositionAndDerivatives(delta, dampingScalar);
+            }
+
+            for (int i = 0; i < targetsPoints.Length; i++)
+            {
+                targetsPoints[i].UpdatePositionAndDerivatives(delta, dampingScalar);
+            }
+
+        }
+
+
+        public void UpdateTargetPointPosition(GameObject[] targetPoints)
+        {
+            int i = 0;
+           foreach(GameObject targetPoint in targetPoints)
+            {
+                this.targetsPoints[i].position = targetPoint.transform.position;
+            }
+        }
     }
 
-    public struct Edge
+    public struct Spring
     {
         public int first;
         public int second;
 
-        public Edge(int first, int second)
+        public float elasticityScalar;
+        public float l_0;
+
+
+        public Spring(int first, int second)
         {
             this.first = first;
             this.second = second;
+            elasticityScalar = 0.1f;
+            l_0 = 3;
         }
 
-        public void Set(int f, int s)
+
+        public void Set(int f, int s, float elasticityScalar, float l_0)
         {
             first = f;
             second = s;
+            this.elasticityScalar = elasticityScalar;
+            this.l_0 = l_0;
+        }
+
+        
+    }
+
+
+    public struct Point
+    {
+        public Vector3 position;
+        public Vector3 velocity;
+        public Vector3 acceleration;
+        public Vector3 springForce;
+        public float inversMass;
+        public float mass { set { inversMass = 1/value; } }
+
+        public Point(Vector3 po,  Vector3 v, Vector3 a, Vector3 springForce, float mass)
+        {
+            this.position = po;
+            this.velocity = v;
+            this.acceleration = a;
+            inversMass = 1 / mass;
+            this.springForce = springForce;
+        }
+
+        public void UpdatePositionAndDerivatives(float delta, float dampingScalar)
+        {
+            acceleration = (springForce + velocity * dampingScalar) * inversMass;
+            position = position + delta * (velocity + delta * acceleration * 0.5f);
+            velocity = velocity + delta * acceleration;
         }
     }
 
