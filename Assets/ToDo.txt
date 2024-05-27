@@ -1,5 +1,6 @@
-﻿damping scalar przy zwiększaniu powinień spowalniać sprężyny skalure się w złą stronę
-dodać prawidłową długość lini diagonalnych
-dodać prawidłową długość lini łączących z targetem
-zmień nazwy plików
-dodaj podążanie za targetem
+﻿
+damping scalar przy zwiększaniu powinień spowalniać sprężyny skalure się w złą stronę	- DONE
+dodać prawidłową długość lini diagonalnych																		- DONE
+dodać prawidłową długość lini łączących z targetem															- DONE
+zmień nazwy plików																											- DONE
+dodaj podążanie za targetem																							- DONE

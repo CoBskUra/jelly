@@ -1,0 +1,8 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <ui:VisualElement style="flex-grow: 1; align-items: flex-start; justify-content: flex-end; align-self: center; width: 100%; height: 100px;">
+        <ui:GroupBox name="GroupBox" style="left: 9px; top: 10px; flex-direction: column-reverse; align-items: auto; justify-content: flex-end; align-self: auto; width: 122px; position: absolute; height: 100%; transform-origin: left;">
+            <ui:RadioButton label="Show diagonal s&#10;prings" name="ShowDiagonal" style="flex-direction: column; font-size: 8px; left: 0; top: 120px; right: 2px; align-items: auto; justify-content: space-around; align-self: center; position: absolute; height: 35px; margin-top: 0; margin-right: 0; margin-bottom: 0; margin-left: 0; width: 70%; transform-origin: top;" />
+            <ui:FloatField label="Delta" value="42.2" name="Delta" is-delayed="true" style="position: absolute; width: auto; left: 0; top: 0; bottom: initial; height: auto; flex-direction: column; font-size: 10px; margin-right: 0; align-self: stretch; right: 0; margin-top: 10px;" />
+        </ui:GroupBox>
+    </ui:VisualElement>
+</ui:UXML>
